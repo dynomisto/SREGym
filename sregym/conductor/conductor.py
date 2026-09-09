@@ -52,6 +52,7 @@ class ConductorConfig:
     internet_policy: InternetPolicy = field(default_factory=InternetPolicy)
     k8s_proxy_listen_host: str = "127.0.0.1"
     block_workload_creation: bool = False
+    baseline_override_s: int | None = None  # overrides per-problem baseline_duration_s when set
 
 
 class Conductor:
@@ -577,6 +578,16 @@ class Conductor:
         self.logger.info("Deploying app...")
         self.deploy_app()
         self.logger.info("App deployed.")
+
+        baseline = (
+            self.config.baseline_override_s
+            if self.config.baseline_override_s is not None
+            else self.problem.baseline_duration_s
+        )
+        if baseline > 0:
+            self.logger.info(f"[BASELINE] Running steady-state for {baseline}s before fault injection...")
+            await asyncio.sleep(baseline)
+            self.logger.info("[BASELINE] Baseline period complete.")
 
         # Update NoiseManager with problem context
         if self.config.enable_noise:

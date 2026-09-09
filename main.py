@@ -835,6 +835,7 @@ def main(args):
         internet_policy=internet_policy,
         k8s_proxy_listen_host=k8s_proxy_listen_host,
         block_workload_creation=internet_policy.is_filtered,
+        baseline_override_s=args.baseline,
     )
     LAUNCHER.set_internet_policy(conductor_config.internet_policy)
 
@@ -1026,10 +1027,19 @@ if __name__ == "__main__":
         default=None,
         help="Resume from a previous results CSV file. Problems already in the CSV will be skipped.",
     )
+    parser.add_argument(
+        "--baseline",
+        type=int,
+        default=None,
+        metavar="SECONDS",
+        help="Override per-problem baseline duration (seconds of steady-state traffic before fault injection)",
+    )
     args = parser.parse_args()
 
     if args.n_attempts is not None and args.n_attempts < 1:
         parser.error("--n-attempts must be a positive integer")
+    if args.baseline is not None and args.baseline < 0:
+        parser.error("--baseline must be a non-negative integer")
     if args.use_external_harness and args.suite:
         parser.error("--use-external-harness cannot be used with --suite; use --problem instead")
 
