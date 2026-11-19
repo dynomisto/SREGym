@@ -1064,6 +1064,8 @@ class KubeCtl:
         name_prefix: str,
         env: dict[str, str] | None = None,
         timeout: int = 180,
+        host_network: bool = False,
+        host_pid: bool = False,
     ) -> str:
         """Run ``script`` in a one-shot privileged busybox pod on ``node_name`` and return its logs.
 
@@ -1087,7 +1089,8 @@ class KubeCtl:
                 node_name=node_name,
                 restart_policy="Never",
                 tolerations=[client.V1Toleration(operator="Exists")],
-                host_pid=False,
+                host_network=host_network,
+                host_pid=host_pid,
                 automount_service_account_token=False,
                 containers=[
                     client.V1Container(

@@ -13,7 +13,13 @@ class NetworkPolicyMitigationOracle(Oracle):
 
     importance = 1.0
     rollout_timeout_seconds = 120
-    probe_timeout_seconds = 60
+    # inject_fault severs the callers' gRPC channels, so after mitigation the
+    # frontend recovers only on grpc-go's next reconnect (backoff up to 120s).
+    # A disconnected frontend fails fast, so the sleeps alone must clear 120s.
+    probe_request_timeout_seconds = 5
+    probe_retry_attempts = 20
+    probe_retry_interval_seconds = 10
+    probe_timeout_seconds = 360
     poll_interval_seconds = 2
 
     @staticmethod
@@ -105,12 +111,22 @@ class NetworkPolicyMitigationOracle(Oracle):
         )
         probe_expect = getattr(self.problem, "probe_expect", '"type":"FeatureCollection"')
         url = f"http://{frontend_service}.{namespace}.svc.cluster.local:{frontend_port}{probe_path}"
-        content_check = f"printf '%s' \"$response\" | grep -qF '{probe_expect}' && " if probe_expect else ""
+        content_check = f" && printf '%s' \"$response\" | grep -qF '{probe_expect}'" if probe_expect else ""
+        # A fresh connection to the target is checked once; the end-to-end
+        # request is retried while the callers' channels reconnect.
         script = (
-            f"nc -z -w 5 '{target_dns}' {target_port} && "
-            f"response=$(wget -q -T 10 -O - '{url}') && "
-            f"{content_check}"
-            "echo RECOMMENDATION_OK"
+            f"nc -z -w 5 '{target_dns}' {target_port} || {{ echo RECOMMENDATION_UNREACHABLE; exit 1; }}\n"
+            f"attempt=0\n"
+            f"while [ $attempt -lt {self.probe_retry_attempts} ]; do\n"
+            f"    attempt=$((attempt + 1))\n"
+            f"    if response=$(wget -q -T {self.probe_request_timeout_seconds} -O - '{url}'){content_check}; then\n"
+            "        echo RECOMMENDATION_OK\n"
+            "        exit 0\n"
+            "    fi\n"
+            f"    sleep {self.probe_retry_interval_seconds}\n"
+            "done\n"
+            "echo RECOMMENDATION_STILL_FAILING\n"
+            "exit 1"
         )
         pod = client.V1Pod(
             metadata=client.V1ObjectMeta(
