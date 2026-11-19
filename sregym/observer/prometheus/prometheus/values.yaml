@@ -1038,6 +1038,18 @@ serverFiles:
                 summary: "HTTP probe failed in {{ $labels.namespace }}"
                 description: "HTTP probe to {{ $labels.instance }} in {{ $labels.namespace }} is failing."
 
+            - alert: TLSCertificateExpired
+              expr: |
+                (probe_ssl_earliest_cert_expiry{job=~"blackbox-tls-.*"} - time()) < 0
+                  and on ()
+                (kube_deployment_status_replicas_available{namespace="ingress-nginx", deployment="ingress-nginx-controller"} > 0)
+              for: 30s
+              labels:
+                severity: critical
+              annotations:
+                summary: "Expired TLS certificate in {{ $labels.namespace }}"
+                description: "{{ $labels.instance }} in {{ $labels.namespace }} serves an expired TLS certificate."
+
 
   #   - name: Instances
   #     rules:
@@ -1248,6 +1260,25 @@ extraScrapeConfigs: |
     static_configs:
       - targets:
           - http://ingress-nginx-controller.ingress-nginx/api/hotels?inDate=2015-04-09&outDate=2015-04-10&lat=38.0235&lon=-122.095
+        labels:
+          namespace: hotel-reservation
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: prometheus-prometheus-blackbox-exporter:9115
+
+  # ---- Ingress HTTPS probes (TLS certificate) ----
+  - job_name: 'blackbox-tls-hotel-reservation'
+    metrics_path: /probe
+    params:
+      module: [https_hotel_reservation]
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - https://ingress-nginx-controller.ingress-nginx/
         labels:
           namespace: hotel-reservation
     relabel_configs:
@@ -1538,6 +1569,19 @@ prometheus-blackbox-exporter:
           valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
           follow_redirects: true
           preferred_ip_protocol: "ip4"
+      # Skips verification so the probe still reports the certificate's expiry.
+      https_hotel_reservation:
+        prober: http
+        timeout: 5s
+        http:
+          valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+          follow_redirects: true
+          preferred_ip_protocol: "ip4"
+          headers:
+            Host: hotel-reservation.local
+          tls_config:
+            server_name: hotel-reservation.local
+            insecure_skip_verify: true
       tcp_connect:
         prober: tcp
         timeout: 5s
