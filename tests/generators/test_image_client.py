@@ -3,8 +3,12 @@
 import subprocess
 from unittest.mock import Mock
 
+from kubernetes import client
+
+from sregym.chaos.protected import WORKLOAD_SELECTORS
 from sregym.generators.workload import image_client
 from sregym.generators.workload.image_client import image_client_deployment, image_client_script
+from sregym.service.agent_visibility_policy import HIDDEN_LABELS, HIDDEN_NAMESPACES, is_hidden_resource
 from sregym.service.apps import astronomy_shop
 from sregym.service.apps.astronomy_shop import AstronomyShop
 
@@ -24,6 +28,20 @@ def test_deployment_pins_the_curl_image():
     container = deployment.spec.template.spec.containers[0]
     assert container.image == "curlimages/curl:8.10.1"
     assert "cpu" not in container.resources.limits
+
+
+def test_deployment_stops_without_waiting_for_sigterm():
+    # sh as PID 1 ignores SIGTERM; a grace period would only stall deletion.
+    assert image_client_deployment("astronomy-shop").spec.template.spec.termination_grace_period_seconds == 0
+
+
+def test_agent_cannot_see_the_client():
+    # Its command names the flag, and deleting it would silence the alert without a fix.
+    deployment = client.ApiClient().sanitize_for_serialization(image_client_deployment("astronomy-shop"))
+    pod = {"kind": "Pod", "metadata": {"namespace": "astronomy-shop", **deployment["spec"]["template"]["metadata"]}}
+    for resource in (deployment, pod):
+        assert is_hidden_resource(resource, HIDDEN_NAMESPACES, HIDDEN_LABELS)
+    assert f"app={image_client.IMAGE_CLIENT_NAME}" in WORKLOAD_SELECTORS
 
 
 def _shop(monkeypatch, enabled):

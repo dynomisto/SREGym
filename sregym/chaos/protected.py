@@ -17,7 +17,7 @@ OBSERVABILITY_NAMESPACE = "observe"
 OBSERVABILITY_KINDS = "deployments,statefulsets,daemonsets,configmaps,services"
 # Labels the workload generators carry in the application namespace
 # (see sregym/service/agent_visibility_policy.py).
-WORKLOAD_SELECTORS = ("job=workload", "app=locust-fetcher", "app=load-generator")
+WORKLOAD_SELECTORS = ("job=workload", "app=locust-fetcher", "app=load-generator", "app=frontend-image-client")
 
 _VOLATILE_METADATA = (
     "resourceVersion",

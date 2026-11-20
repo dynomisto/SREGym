@@ -28,6 +28,7 @@ done"""
 
 
 def image_client_deployment(namespace: str) -> client.V1Deployment:
+    # Hidden from the agent by agent_visibility_policy.HIDDEN_LABELS, like the other workload generators.
     labels = {"app": IMAGE_CLIENT_NAME}
     container = client.V1Container(
         name="client",
@@ -42,7 +43,9 @@ def image_client_deployment(namespace: str) -> client.V1Deployment:
             replicas=1,
             selector=client.V1LabelSelector(match_labels=labels),
             template=client.V1PodTemplateSpec(
-                metadata=client.V1ObjectMeta(labels=labels), spec=client.V1PodSpec(containers=[container])
+                metadata=client.V1ObjectMeta(labels=labels),
+                # sh runs as PID 1 and ignores SIGTERM, so a grace period only delays deletion.
+                spec=client.V1PodSpec(containers=[container], termination_grace_period_seconds=0),
             ),
         ),
     )

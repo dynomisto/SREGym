@@ -7,7 +7,7 @@ from collections.abc import Callable
 HIDDEN_NAMESPACES: set[str] = {"chaos-mesh", "khaos"}
 HIDDEN_OBJECT_PATTERN = rf"(^|[^a-z0-9-])({'|'.join(sorted(HIDDEN_NAMESPACES))})/"
 HIDDEN_LABELS: dict[str, set[str]] = {
-    "app": {"load-generator", "locust-fetcher"},
+    "app": {"load-generator", "locust-fetcher", "frontend-image-client"},
     "job": {"workload"},
     "network-access": {"restricted"},
     "opentelemetry.io/name": {"load-generator"},
